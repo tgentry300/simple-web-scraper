@@ -10,31 +10,46 @@ import requests
 import re
 from MyHTMLParser import MyHTMLParser
 from pprint import pprint
+from bs4 import BeautifulSoup
 
-parser = MyHTMLParser()
+html_parser = MyHTMLParser()
 
 
 def request_url(url):
     r = requests.get(url)
     html_text = r.content
 
-    url_list = list(set(re.findall(
-        r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+', html_text)))
+    soup = BeautifulSoup(html_text, 'html.parser')
+
+    url_regex = (r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|'
+                 r'(?:%[0-9a-fA-F][0-9a-fA-F]))+')
+
+    url_list = list(set(re.findall(url_regex, html_text)))
 
     email_list = list(
-        set(re.findall(r'([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)', html_text)))
+        set(re.findall(r'([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)',
+            html_text)))
 
-    parser.feed(html_text)
+    for link in soup.find_all('a'):
+        url_list.append(link.get('href'))
+
+    for link in soup.find_all('img'):
+        if link.get('src'):
+            url_list.append(link.get('src'))
+
+    html_parser.feed(html_text)
     phone_list = []
-    for d in parser.data:
-        phone_regex = r'\W*\D([2-9][0-8][0-9])\W*([2-9][0-9]{2})\W*([0-9]{4})(\se?x?t?(\d*))?\D'
+    for d in html_parser.data:
+        phone_regex = (r'\W*\D([2-9][0-8][0-9])\W*([2-9][0-9]{2})\W*'
+                       r'([0-9]{4})(\se?x?t?(\d*))?\D')
         matches = re.search(phone_regex, d)
         if matches:
             phone_list.append(
-                '({}){}-{}'.format(matches.group(1), matches.group(2), matches.group(3)))
+                '({}){}-{}'.format(matches.group(1), matches.group(2),
+                                   matches.group(3)))
 
     print('URLs')
-    pprint(url_list)
+    pprint(set(url_list))
     print('email addresses')
     pprint(email_list)
     print('Phone Numbers')
